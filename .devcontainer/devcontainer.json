@@ -1,0 +1,10 @@
+{
+	"name": "Codespaces Rust Starter",
+	"extensions": [
+		"fill-labs.dependi",
+		"1YiB.rust-bundle",
+		"dustypomerleau.rust-syntax",
+		"rust-lang.rust-analyzer"
+	],
+	"dockerFile": "Dockerfile"
+}
