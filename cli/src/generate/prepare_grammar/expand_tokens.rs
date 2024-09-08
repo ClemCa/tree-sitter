@@ -530,13 +530,14 @@ impl NfaBuilder {
     fn push_advance(&mut self, chars: CharacterSet, state_id: u32, force_empty: bool) {
         let precedence = *self.precedence_stack.last().unwrap();
         if force_empty {
-            let empty_chars = CharacterSet::empty();
-            self.nfa.states.push(NfaState::Advance {
-                chars: empty_chars,                
-                state_id,
-                precedence,
-                is_sep: false,
-            });
+            return;
+            // let empty_chars = CharacterSet::empty();
+            // self.nfa.states.push(NfaState::Advance {
+            //     chars: empty_chars,                
+            //     state_id,
+            //     precedence,
+            //     is_sep: false,
+            // });
         }
         self.nfa.states.push(NfaState::Advance {
             chars,
