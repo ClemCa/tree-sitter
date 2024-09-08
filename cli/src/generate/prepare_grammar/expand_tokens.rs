@@ -531,13 +531,6 @@ impl NfaBuilder {
         let precedence = *self.precedence_stack.last().unwrap();
         if force_empty {
             return;
-            // let empty_chars = CharacterSet::empty();
-            // self.nfa.states.push(NfaState::Advance {
-            //     chars: empty_chars,                
-            //     state_id,
-            //     precedence,
-            //     is_sep: false,
-            // });
         }
         self.nfa.states.push(NfaState::Advance {
             chars,
