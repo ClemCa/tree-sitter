@@ -115,11 +115,11 @@ impl NfaBuilder {
         match rule {
             Rule::Pattern(s, f) => {
                 let ast = parse::Parser::new().parse(s)?;
-                self.expand_regex(&ast, next_state_id, f.contains('i'))
+                self.expand_regex(&ast, next_state_id, f.contains('i'), false)
             }
             Rule::String(s) => {
                 for c in s.chars().rev() {
-                    self.push_advance(CharacterSet::empty().add_char(c), next_state_id);
+                    self.push_advance(CharacterSet::empty().add_char(c), next_state_id, false);
                     next_state_id = self.nfa.last_state_id();
                 }
                 Ok(!s.is_empty())
@@ -188,6 +188,7 @@ impl NfaBuilder {
         ast: &Ast,
         mut next_state_id: u32,
         case_insensitive: bool,
+        non_capturing: bool,
     ) -> Result<bool> {
         const fn inverse_char(c: char) -> char {
             match c {
@@ -218,11 +219,11 @@ impl NfaBuilder {
                         char_set = char_set.add_char(inverted);
                     }
                 }
-                self.push_advance(char_set, next_state_id);
+                self.push_advance(char_set, next_state_id, non_capturing);
                 Ok(true)
             }
             Ast::Dot(_) => {
-                self.push_advance(CharacterSet::from_char('\n').negate(), next_state_id);
+                self.push_advance(CharacterSet::from_char('\n').negate(), next_state_id, non_capturing);
                 Ok(true)
             }
             Ast::Assertion(_) => Err(anyhow!("Regex error: Assertions are not supported")),
@@ -234,7 +235,7 @@ impl NfaBuilder {
                 if case_insensitive {
                     chars = with_inverse_char(chars);
                 }
-                self.push_advance(chars, next_state_id);
+                self.push_advance(chars, next_state_id, non_capturing);
                 Ok(true)
             }
             Ast::ClassPerl(class) => {
@@ -245,7 +246,7 @@ impl NfaBuilder {
                 if case_insensitive {
                     chars = with_inverse_char(chars);
                 }
-                self.push_advance(chars, next_state_id);
+                self.push_advance(chars, next_state_id, non_capturing);
                 Ok(true)
             }
             Ast::ClassBracketed(class) => {
@@ -256,32 +257,32 @@ impl NfaBuilder {
                 if case_insensitive {
                     chars = with_inverse_char(chars);
                 }
-                self.push_advance(chars, next_state_id);
+                self.push_advance(chars, next_state_id, non_capturing);
                 Ok(true)
             }
             Ast::Repetition(repetition) => match repetition.op.kind {
                 RepetitionKind::ZeroOrOne => {
-                    self.expand_zero_or_one(&repetition.ast, next_state_id, case_insensitive)
+                    self.expand_zero_or_one(&repetition.ast, next_state_id, case_insensitive, non_capturing)
                 }
                 RepetitionKind::OneOrMore => {
-                    self.expand_one_or_more(&repetition.ast, next_state_id, case_insensitive)
+                    self.expand_one_or_more(&repetition.ast, next_state_id, case_insensitive, non_capturing)
                 }
                 RepetitionKind::ZeroOrMore => {
-                    self.expand_zero_or_more(&repetition.ast, next_state_id, case_insensitive)
+                    self.expand_zero_or_more(&repetition.ast, next_state_id, case_insensitive, non_capturing)
                 }
                 RepetitionKind::Range(RepetitionRange::Exactly(count)) => {
-                    self.expand_count(&repetition.ast, count, next_state_id, case_insensitive)
+                    self.expand_count(&repetition.ast, count, next_state_id, case_insensitive, non_capturing)
                 }
                 RepetitionKind::Range(RepetitionRange::AtLeast(min)) => {
-                    if self.expand_zero_or_more(&repetition.ast, next_state_id, case_insensitive)? {
-                        self.expand_count(&repetition.ast, min, next_state_id, case_insensitive)
+                    if self.expand_zero_or_more(&repetition.ast, next_state_id, case_insensitive, non_capturing)? {
+                        self.expand_count(&repetition.ast, min, next_state_id, case_insensitive, non_capturing)
                     } else {
                         Ok(false)
                     }
                 }
                 RepetitionKind::Range(RepetitionRange::Bounded(min, max)) => {
                     let mut result =
-                        self.expand_count(&repetition.ast, min, next_state_id, case_insensitive)?;
+                        self.expand_count(&repetition.ast, min, next_state_id, case_insensitive, non_capturing)?;
                     for _ in min..max {
                         if result {
                             next_state_id = self.nfa.last_state_id();
@@ -290,6 +291,7 @@ impl NfaBuilder {
                             &repetition.ast,
                             next_state_id,
                             case_insensitive,
+                            non_capturing,
                         )? {
                             result = true;
                         }
@@ -297,11 +299,11 @@ impl NfaBuilder {
                     Ok(result)
                 }
             },
-            Ast::Group(group) => self.expand_regex(&group.ast, next_state_id, case_insensitive),
+            Ast::Group(group) => self.expand_regex(&group.ast, next_state_id, case_insensitive, !group.is_capturing()),
             Ast::Alternation(alternation) => {
                 let mut alternative_state_ids = Vec::new();
                 for ast in &alternation.asts {
-                    if self.expand_regex(ast, next_state_id, case_insensitive)? {
+                    if self.expand_regex(ast, next_state_id, case_insensitive, non_capturing)? {
                         alternative_state_ids.push(self.nfa.last_state_id());
                     } else {
                         alternative_state_ids.push(next_state_id);
@@ -319,7 +321,7 @@ impl NfaBuilder {
             Ast::Concat(concat) => {
                 let mut result = false;
                 for ast in concat.asts.iter().rev() {
-                    if self.expand_regex(ast, next_state_id, case_insensitive)? {
+                    if self.expand_regex(ast, next_state_id, case_insensitive, non_capturing)? {
                         result = true;
                         next_state_id = self.nfa.last_state_id();
                     }
@@ -355,13 +357,14 @@ impl NfaBuilder {
         ast: &Ast,
         next_state_id: u32,
         case_insensitive: bool,
+        non_capturing: bool,
     ) -> Result<bool> {
         self.nfa.states.push(NfaState::Accept {
             variable_index: 0,
             precedence: 0,
         }); // Placeholder for split
         let split_state_id = self.nfa.last_state_id();
-        if self.expand_regex(ast, split_state_id, case_insensitive)? {
+        if self.expand_regex(ast, split_state_id, case_insensitive, non_capturing)? {
             self.nfa.states[split_state_id as usize] =
                 NfaState::Split(self.nfa.last_state_id(), next_state_id);
             Ok(true)
@@ -376,8 +379,9 @@ impl NfaBuilder {
         ast: &Ast,
         next_state_id: u32,
         case_insensitive: bool,
+        non_capturing: bool,
     ) -> Result<bool> {
-        if self.expand_regex(ast, next_state_id, case_insensitive)? {
+        if self.expand_regex(ast, next_state_id, case_insensitive, non_capturing)? {
             self.push_split(next_state_id);
             Ok(true)
         } else {
@@ -390,8 +394,9 @@ impl NfaBuilder {
         ast: &Ast,
         next_state_id: u32,
         case_insensitive: bool,
+        non_capturing: bool,
     ) -> Result<bool> {
-        if self.expand_one_or_more(ast, next_state_id, case_insensitive)? {
+        if self.expand_one_or_more(ast, next_state_id, case_insensitive, non_capturing)? {
             self.push_split(next_state_id);
             Ok(true)
         } else {
@@ -405,10 +410,11 @@ impl NfaBuilder {
         count: u32,
         mut next_state_id: u32,
         case_insensitive: bool,
+        non_capturing: bool,
     ) -> Result<bool> {
         let mut result = false;
         for _ in 0..count {
-            if self.expand_regex(ast, next_state_id, case_insensitive)? {
+            if self.expand_regex(ast, next_state_id, case_insensitive, non_capturing)? {
                 result = true;
                 next_state_id = self.nfa.last_state_id();
             }
@@ -521,8 +527,17 @@ impl NfaBuilder {
         }
     }
 
-    fn push_advance(&mut self, chars: CharacterSet, state_id: u32) {
+    fn push_advance(&mut self, chars: CharacterSet, state_id: u32, force_empty: bool) {
         let precedence = *self.precedence_stack.last().unwrap();
+        if force_empty {
+            let empty_chars = CharacterSet::empty();
+            self.nfa.states.push(NfaState::Advance {
+                chars: empty_chars,                
+                state_id,
+                precedence,
+                is_sep: false,
+            });
+        }
         self.nfa.states.push(NfaState::Advance {
             chars,
             state_id,
