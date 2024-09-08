@@ -27,6 +27,7 @@ pub enum ParseAction {
         child_count: usize,
         dynamic_precedence: i32,
         production_id: ProductionInfoId,
+        no_advance: bool,
     },
 }
 

@@ -16,13 +16,10 @@ use super::{
 use crate::generate::{
     grammars::{
         InlinedProductionMap, LexicalGrammar, PrecedenceEntry, SyntaxGrammar, VariableType,
-    },
-    node_types::VariableInfo,
-    rules::{Associativity, Precedence, Symbol, SymbolType, TokenSet},
-    tables::{
+    }, nfa::NfaState, node_types::VariableInfo, rules::{Associativity, Precedence, Symbol, SymbolType, TokenSet}, tables::{
         FieldLocation, GotoAction, ParseAction, ParseState, ParseStateId, ParseTable,
         ParseTableEntry, ProductionInfo, ProductionInfoId,
-    },
+    }
 };
 
 // For conflict reporting, each parse state is associated with an example
@@ -259,6 +256,7 @@ impl<'a> ParseTableBuilder<'a> {
                         child_count: item.step_index as usize,
                         dynamic_precedence: item.production.dynamic_precedence,
                         production_id: self.get_production_id(item),
+                        no_advance: self.get_no_capture(),
                     }
                 };
 
@@ -853,6 +851,21 @@ impl<'a> ParseTableBuilder<'a> {
             auxiliary_symbol: symbol,
             parent_symbols,
         }
+    }
+
+    fn get_no_capture(&mut self) -> bool {
+        let mut no_cap = false;
+        for(_i, state) in self.lexical_grammar.nfa.states.iter().enumerate() {
+            match state {
+                NfaState::Advance { no_capture, .. } => {
+                    if *no_capture {
+                        no_cap = true;
+                    }
+                },
+                _ => {},
+            }
+        }
+        return no_cap;
     }
 
     fn get_production_id(&mut self, item: &ParseItem) -> ProductionInfoId {
