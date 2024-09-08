@@ -527,23 +527,14 @@ impl NfaBuilder {
         }
     }
 
-    fn push_advance(&mut self, chars: CharacterSet, state_id: u32, force_empty: bool) {
+    fn push_advance(&mut self, chars: CharacterSet, state_id: u32, non_capturing: bool) {
         let precedence = *self.precedence_stack.last().unwrap();
-        if force_empty {
-            return;
-            // let empty_chars = CharacterSet::empty();
-            // self.nfa.states.push(NfaState::Advance {
-            //     chars: empty_chars,                
-            //     state_id,
-            //     precedence,
-            //     is_sep: false,
-            // });
-        }
         self.nfa.states.push(NfaState::Advance {
             chars,
             state_id,
             precedence,
             is_sep: self.is_sep,
+            no_capture: non_capturing,
         });
     }
 
@@ -581,6 +572,7 @@ mod tests {
             if let Some(NfaTransition {
                 states,
                 is_separator,
+                no_capture,
                 ..
             }) = cursor
                 .transitions()
@@ -588,7 +580,9 @@ mod tests {
                 .find(|t| t.characters.contains(c) && t.precedence >= result_precedence)
             {
                 cursor.reset(states);
-                end_char += c.len_utf8();
+                if !no_capture {
+                    end_char += c.len_utf8();
+                }
                 if is_separator {
                     start_char = end_char;
                 }
