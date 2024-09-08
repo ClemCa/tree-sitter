@@ -390,8 +390,13 @@ fn mark_fragile_tokens(
             if token.is_terminal() {
                 for (i, is_valid) in valid_tokens_mask.iter().enumerate() {
                     if *is_valid && token_conflict_map.does_overlap(i, token.index) {
-                        entry.reusable = false;
-                        break;
+                        if entry.actions.iter().all(|action| match action {
+                            ParseAction::Reduce { no_advance, .. } => !no_advance,
+                            _ => true,
+                        }) {
+                            entry.reusable = false;
+                            break;
+                        }
                     }
                 }
             }
