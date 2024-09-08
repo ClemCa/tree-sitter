@@ -415,7 +415,7 @@ fn main() {
 fn run() -> Result<()> {
     let version = BUILD_SHA.map_or_else(
         || BUILD_VERSION.to_string(),
-        |build_sha| format!("{BUILD_VERSION} ({build_sha})"),
+        |build_sha| format!("{BUILD_VERSION} - ClemCa Ver. ({build_sha})"),
     );
     let version: &'static str = Box::leak(version.into_boxed_str());
 
