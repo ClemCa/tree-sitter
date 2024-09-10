@@ -1,0 +1,49 @@
+init:
+   symbols,
+   field names,
+   mappings to aliases
+   character sets to unique names
+   determine small/large state representations
+include treesitter
+pragmas diagnostic by compiler
+stats:
+   language ver
+   small / large state counts
+   symbol, aliases, internal & external token counts
+   max alias sequence length
+   production infos length
+symbol enum, list & map:
+   symbols
+   aliases
+fields enum & list:
+   field names
+fields map:
+   name => index (row id), length
+non terminal alias map:
+   symbol id => alias id
+primary state id list:
+   for each core state (first state):
+      index => core state
+lex function:
+   takes in lexer & state
+   returns bool
+   switches on state
+   	add lex state:
+           if accept action accept
+           if eof action & eof advance to predefined
+           all kinds of checks INCLUDING REGEXING
+add character sets:
+   ranges (start, end)
+add lex modes list:
+   for each parse table state (core states)
+   state or external id for mode index
+add parse table:
+   for each entries (symbol action pair):
+      symbolID => actions(entryID)
+   similar for large states with some added complexity
+external token enum, map, list:
+   id: true and some other stuff
+add parser export:
+   language function name
+   c++ stuff
+   everything related to the basic functions of the lexer that even the reader has access to
