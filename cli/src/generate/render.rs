@@ -1308,7 +1308,7 @@ impl Generator {
                         add!(
                             self,
                             "REDUCE({}, {}, {dynamic_precedence}, {production_id})",
-                            if no_advance {0} else {child_count},
+                            if no_advance {child_count} else {child_count},
                             self.symbol_ids[&symbol]
                         );
                     }
